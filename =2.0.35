@@ -1,0 +1,6 @@
+Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple, https://www.piwheels.org/simple
+Collecting sqlalchemy
+  Using cached https://www.piwheels.org/simple/sqlalchemy/SQLAlchemy-0.8.7-py3-none-any.whl.metadata (5.8 kB)
+Using cached https://www.piwheels.org/simple/sqlalchemy/SQLAlchemy-0.8.7-py3-none-any.whl (806 kB)
+Installing collected packages: sqlalchemy
+Successfully installed sqlalchemy-0.8.7
