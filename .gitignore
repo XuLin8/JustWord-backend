@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+.env
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+*.pid
+*.pid.lock
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# 敏感配置
+.env
+.env.local
+.env.*.local
+
+# 日志
+logs/
+*.log
+
+# 临时文件
+*.tmp
+*.temp
+.DS_Store
