@@ -9,8 +9,8 @@ class User(Base):
     id = Column(String(36), primary_key=True)
     email = Column(String(255), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
+    username = Column(String(255), nullable=False)  # ✅ 确保有这个字段
     created_at = Column(DateTime, default=datetime.utcnow)
-    
     words = relationship("Word", back_populates="user")
 
 class Word(Base):
@@ -38,7 +38,8 @@ class LearningRecord(Base):
     correct_answer = Column(Text)
     result = Column(String(20))  # 'correct', 'partial', 'wrong', 'close'
     score = Column(Float)
-    feedback = Column(Text, nullable=True)    created_at = Column(DateTime, default=datetime.utcnow)
+    feedback = Column(Text, nullable=True)    
+    created_at = Column(DateTime, default=datetime.utcnow)
     
     # ✅ 关系定义
     word = relationship("Word", back_populates="learning_records")
