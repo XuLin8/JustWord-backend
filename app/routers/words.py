@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 from ..database import get_db
 from ..models import Word as WordModel
+from ..schemas import WordCreate, WordUpdate, WordResponse
 
 router = APIRouter()
 
@@ -33,7 +34,9 @@ def to_word_response(word: WordModel) -> WordResponse:
         id=word.id,
         english=word.english,
         chinese=word.chinese,
-        created_at=word.created_at
+        created_at=word.created_at,
+         updated_at=word.updated_at,
+        meta_data=word.meta_data or {}
     )
 
 
@@ -63,7 +66,9 @@ async def create_word(word: WordCreate, db: AsyncSession = Depends(get_db)):
         id=str(uuid.uuid4()),
         english=word.english.strip(),
         chinese=word.chinese.strip(),
-        created_at=datetime.now()
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
+        meta_data=word.meta_data or {}
     )
     db.add(new_word)
     await db.commit()
@@ -109,7 +114,15 @@ async def update_word(
     
     if word_update.chinese is not None:
         word.chinese = word_update.chinese.strip()
+        
+    if word_update.meta_data is not None:
+        # 合并 meta_data，保留原有字段
+        if word.meta_data is None:
+            word.meta_data = {}
+        word.meta_data.update(word_update.meta_data)
     
+    word.updated_at = datetime.now()
+
     await db.commit()
     await db.refresh(word)
     return to_word_response(word)

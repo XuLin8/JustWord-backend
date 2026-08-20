@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Text, Float
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Text, JSON, Float
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from .database import Base
@@ -20,8 +20,13 @@ class Word(Base):
     english = Column(String(255), nullable=False)
     chinese = Column(String(255), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     user_id = Column(String(36), ForeignKey("users.id"))
+    meta_data = Column(JSON, nullable=True, default={})
+    
+    # ✅ 关系定义
     user = relationship("User", back_populates="words")
+    learning_records = relationship("LearningRecord", back_populates="word")
 
 class LearningRecord(Base):
     __tablename__ = "learning_records"
@@ -33,5 +38,7 @@ class LearningRecord(Base):
     correct_answer = Column(Text)
     result = Column(String(20))  # 'correct', 'partial', 'wrong', 'close'
     score = Column(Float)
-    feedback = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    feedback = Column(Text, nullable=True)    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # ✅ 关系定义
+    word = relationship("Word", back_populates="learning_records")
