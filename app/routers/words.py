@@ -7,7 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 from ..database import get_db
 from ..models import Word as WordModel
+from ..models import User
 from ..schemas import WordCreate, WordUpdate, WordResponse
+from ..routers.auth import get_current_user
+from typing import Any, Dict
+
 
 router = APIRouter()
 
@@ -15,16 +19,19 @@ router = APIRouter()
 class WordCreate(BaseModel):
     english: str
     chinese: str
+    meta_data: Optional[Dict[str, Any]] = {}  # ✅ 添加
 
 class WordUpdate(BaseModel):
     english: Optional[str] = None
     chinese: Optional[str] = None
+    meta_data: Optional[Dict[str, Any]] = None  # ✅ 添加
 
 class WordResponse(BaseModel):
     id: str
     english: str
     chinese: str
     created_at: datetime
+    meta_data: Dict[str, Any] = {}  # ✅ 添加
 
 
 # ============ 辅助函数 ============
@@ -35,27 +42,31 @@ def to_word_response(word: WordModel) -> WordResponse:
         english=word.english,
         chinese=word.chinese,
         created_at=word.created_at,
-         updated_at=word.updated_at,
+        updated_at=word.updated_at,
         meta_data=word.meta_data or {}
     )
 
 
 # ============ API 端点 ============
 
+# ============ GET 所有单词 ============
 @router.get("/", response_model=List[WordResponse])
-async def get_words(db: AsyncSession = Depends(get_db)):
-    """获取所有单词列表"""
-    result = await db.execute(select(WordModel))
+async def get_words(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """获取当前用户单词列表"""
+    result = await db.execute(select(WordModel).where(WordModel.user_id == current_user.id))
     words = result.scalars().all()
     return [to_word_response(w) for w in words]
 
-
+# ============ POST 创建单词 ============
 @router.post("/", response_model=WordResponse, status_code=201)
-async def create_word(word: WordCreate, db: AsyncSession = Depends(get_db)):
-    """创建新单词"""
+async def create_word(word: WordCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """创建新单词（绑定当前用户）"""
     # 检查是否已存在相同英文单词
     result = await db.execute(
-        select(WordModel).where(WordModel.english == word.english.strip())
+        select(WordModel).where(
+            WordModel.english == word.english.strip(),
+            WordModel.user_id == current_user.id
+        )
     )
     existing = result.scalar_one_or_none()
     if existing:
@@ -68,7 +79,8 @@ async def create_word(word: WordCreate, db: AsyncSession = Depends(get_db)):
         chinese=word.chinese.strip(),
         created_at=datetime.now(),
         updated_at=datetime.now(),
-        meta_data=word.meta_data or {}
+        meta_data=word.meta_data or {},
+        user_id=current_user.id
     )
     db.add(new_word)
     await db.commit()
@@ -76,35 +88,43 @@ async def create_word(word: WordCreate, db: AsyncSession = Depends(get_db)):
     
     return to_word_response(new_word)
 
-
+# ============ GET 单个单词 ============
 @router.get("/{word_id}", response_model=WordResponse)
-async def get_word(word_id: str, db: AsyncSession = Depends(get_db)):
+async def get_word(word_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     """根据 ID 获取单个单词"""
-    result = await db.execute(select(WordModel).where(WordModel.id == word_id))
+    result = await db.execute(select(WordModel).where(
+        WordModel.id == word_id,
+        WordModel.user_id == current_user.id
+    ))
     word = result.scalar_one_or_none()
     if not word:
         raise HTTPException(status_code=404, detail="单词不存在")
     return to_word_response(word)
 
-
+# ============ PUT 更新单词 ============
 @router.put("/{word_id}", response_model=WordResponse)
 async def update_word(
     word_id: str, 
     word_update: WordUpdate, 
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    """更新单词信息"""
-    result = await db.execute(select(WordModel).where(WordModel.id == word_id))
+    """更新当前用户单词信息"""
+    result = await db.execute(select(WordModel).where(
+        WordModel.id == word_id,
+        WordModel.user_id == current_user.id
+    ))
     word = result.scalar_one_or_none()
     if not word:
         raise HTTPException(status_code=404, detail="单词不存在")
     
     if word_update.english is not None:
-        # 检查英文是否与其他单词重复
+        # 检查英文是否与其他单词重复（当前用户的词库中）
         result = await db.execute(
             select(WordModel).where(
                 WordModel.english == word_update.english.strip(),
-                WordModel.id != word_id
+                WordModel.user_id == current_user.id,
+                WordModel.id != word_id,
             )
         )
         existing = result.scalar_one_or_none()
@@ -127,11 +147,14 @@ async def update_word(
     await db.refresh(word)
     return to_word_response(word)
 
-
+# ============ DELETE 删除单词 ============
 @router.delete("/{word_id}")
-async def delete_word(word_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_word(word_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     """删除单词"""
-    result = await db.execute(select(WordModel).where(WordModel.id == word_id))
+    result = await db.execute(select(WordModel).where(
+        WordModel.id == word_id,
+        WordModel.user_id == current_user.id
+    ))
     word = result.scalar_one_or_none()
     if not word:
         raise HTTPException(status_code=404, detail="单词不存在")
@@ -140,13 +163,13 @@ async def delete_word(word_id: str, db: AsyncSession = Depends(get_db)):
     await db.commit()
     return {"message": f"单词 '{word.english}' 已删除", "id": word_id}
 
-
+# ============ DELETE 删除所有单词 ============
 @router.delete("/")
-async def delete_all_words(db: AsyncSession = Depends(get_db)):
+async def delete_all_words(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     """删除所有单词（危险操作）"""
-    result = await db.execute(select(WordModel))
+    result = await db.execute(select(WordModel).where(WordModel.user_id == current_user.id))
     words = result.scalars().all()
     count = len(words)
-    await db.execute(delete(WordModel))
+    await db.execute(delete(WordModel).where(WordModel.user_id == current_user.id))
     await db.commit()
     return {"message": f"已删除所有 {count} 个单词"}
