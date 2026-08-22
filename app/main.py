@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from .database import engine, Base
 from .routers import words, learning, ai, auth
+from .exceptions import register_exception_handlers
 
 # 数据库表创建
 @asynccontextmanager
@@ -34,6 +35,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 注册异常处理器
+register_exception_handlers(app)
 
 # 注册路由
 app.include_router(auth.router, prefix="/api/auth", tags=["认证"])
