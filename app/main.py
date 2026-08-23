@@ -3,7 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from .database import engine, Base
-from .routers import words, learning, ai, auth, wordbooks, library, export, achievements
+from .routers import (
+    words, ai, auth, wordbooks, library, export, achievements,
+    records, reviews, wrong_words, checkin, dashboard, analysis,
+)
 from .exceptions import register_exception_handlers
 
 # 数据库表创建
@@ -42,12 +45,19 @@ register_exception_handlers(app)
 # 注册路由
 app.include_router(auth.router, prefix="/api/auth", tags=["认证"])
 app.include_router(words.router, prefix="/api/words", tags=["单词"])
-app.include_router(learning.router, prefix="/api/learning", tags=["学习"])
 app.include_router(wordbooks.router, prefix="/api/wordbooks", tags=["单词本"])
 app.include_router(library.router, prefix="/api/library", tags=["词库"])
 app.include_router(export.router, prefix="/api/export", tags=["导出/备份"])
 app.include_router(achievements.router, prefix="/api/achievements", tags=["成就"])
 app.include_router(ai.router, prefix="/api/ai", tags=["AI"])
+
+# 学习域（原 learning.py 拆分而来，路径不变）
+app.include_router(records.router, prefix="/api/learning", tags=["学习-记录"])
+app.include_router(reviews.router, prefix="/api/learning", tags=["学习-复习"])
+app.include_router(wrong_words.router, prefix="/api/learning", tags=["学习-错题"])
+app.include_router(checkin.router, prefix="/api/learning", tags=["学习-打卡"])
+app.include_router(dashboard.router, prefix="/api/learning", tags=["学习-看板"])
+app.include_router(analysis.router, prefix="/api/learning", tags=["学习-分析"])
 
 @app.get("/api/health")
 async def health():

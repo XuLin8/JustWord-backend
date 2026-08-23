@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..database import get_db
 from ..models import User, Wordbook, Word as WordModel
 from ..schemas import WordbookCreate, WordbookUpdate, WordbookResponse, WordResponse
-from ..routers.auth import get_current_user
+from ..deps import get_current_user
 from ..routers.words import to_word_response
 
 

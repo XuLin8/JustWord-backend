@@ -6,7 +6,7 @@ from datetime import date, datetime, timedelta
 from ..database import get_db
 from ..models import User, Word as WordModel, Checkin, WrongWord, Achievement, LearningRecord
 from ..schemas import AchievementResponse, AchievementItem
-from ..routers.auth import get_current_user
+from ..deps import get_current_user
 
 router = APIRouter()
 

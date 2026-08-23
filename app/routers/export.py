@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
 from ..models import User, Word as WordModel, Wordbook, WrongWord, Checkin, LearningRecord
-from ..routers.auth import get_current_user
+from ..deps import get_current_user
 from ..schemas import RestoreResponse
 
 

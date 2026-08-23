@@ -8,7 +8,7 @@ from ..database import get_db
 from ..models import Word as WordModel
 from ..models import User
 from ..schemas import WordCreate, WordUpdate, WordResponse
-from ..routers.auth import get_current_user
+from ..deps import get_current_user
 
 
 router = APIRouter()
