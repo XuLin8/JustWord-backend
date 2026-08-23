@@ -218,3 +218,20 @@ class EfficiencyResponse(BaseModel):
     weak_words: int
     retention_avg: Optional[float] = None    # 全部已学词平均记忆保持率
     per_day_avg: float                       # 日均作答次数
+
+# ---- 成就 / 徽章 ----
+class AchievementItem(BaseModel):
+    key: str
+    name: str
+    description: str
+    category: str
+    target: int
+    progress: int
+    progress_rate: float
+    unlocked: bool
+    unlocked_at: Optional[datetime] = None
+
+class AchievementResponse(BaseModel):
+    items: List[AchievementItem]
+    unlocked_count: int
+    total_count: int

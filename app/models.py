@@ -16,6 +16,7 @@ class User(Base):
     checkins = relationship("Checkin", back_populates="user")
     wrong_words = relationship("WrongWord", back_populates="user")
     wordbooks = relationship("Wordbook", back_populates="user")
+    achievements = relationship("Achievement", back_populates="user")
 
 class Word(Base):
     __tablename__ = "words"
@@ -126,3 +127,16 @@ class Checkin(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="checkins")
+
+
+class Achievement(Base):
+    """已解锁的成就/徽章（一用户一成就一条，解锁时间落库）"""
+    __tablename__ = "achievements"
+    __table_args__ = (UniqueConstraint("user_id", "akey", name="uq_achievement_user_key"),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
+    akey = Column(String(64), nullable=False)   # 成就标识
+    unlocked_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="achievements")
