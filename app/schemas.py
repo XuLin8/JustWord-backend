@@ -44,6 +44,27 @@ class WordbookResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class LibraryResponse(BaseModel):
+    id: int
+    name: str
+    description: str = ""
+    words_count: int = 0
+
+class LibraryWordResponse(BaseModel):
+    id: int
+    english: str
+    chinese: str
+
+class LibraryImportRequest(BaseModel):
+    wordbook_id: Optional[int] = None   # 导入后归属的单词本
+    word_ids: Optional[List[int]] = None  # 为空则导入整个词库
+
+class LibraryImportResult(BaseModel):
+    library_id: int
+    imported: int          # 实际导入数
+    skipped: int           # 跳过数（已存在或指定 word_id 无效）
+    skipped_english: List[str] = []
+
 class JudgeRequest(BaseModel):
     word: str
     user_answer: str

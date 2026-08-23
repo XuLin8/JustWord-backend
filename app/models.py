@@ -53,6 +53,30 @@ class Wordbook(Base):
     user = relationship("User", back_populates="wordbooks")
     words = relationship("Word", back_populates="wordbook", order_by="Word.created_at.desc()")
 
+class WordLibrary(Base):
+    """公开词汇库（不属于单个用户，供用户导入）"""
+    __tablename__ = "word_libraries"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(255), nullable=False)
+    description = Column(String(500), nullable=True, default="")
+    words_count = Column(Integer, nullable=False, default=0)  # 词库内单词数
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    words = relationship("LibraryWord", back_populates="library", order_by="LibraryWord.english")
+
+class LibraryWord(Base):
+    """词库内的词（公开共享）"""
+    __tablename__ = "library_words"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    library_id = Column(Integer, ForeignKey("word_libraries.id", ondelete="CASCADE"), nullable=False)
+    english = Column(String(255), nullable=False)
+    chinese = Column(String(255), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    library = relationship("WordLibrary", back_populates="words")
+
 class LearningRecord(Base):
     __tablename__ = "learning_records"
     
