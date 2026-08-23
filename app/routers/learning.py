@@ -395,6 +395,41 @@ def _mastery_bucket(reps: int) -> dict:
     return {"label": "未学", "count": 0}
 
 
+def _build_daily_trend(
+    records, days: int, local_offset: timedelta, end: date
+) -> List[DashboardDailyTrend]:
+    """构建近 `days` 天每日学习趋势，保证输出连续日期序列（含 `end`）。
+
+    细化工项：
+      - 天数钳制到 [1, 365]，避免异常入参；
+      - 每个窗口日期都预先置零，无数据的天自动补零（attempts/correct/rate=0）；
+      - 仅统计窗口内的记录（created_at 为 UTC，先按 local_offset 换算成环境本地日期）；
+      - dict 按插入顺序即日期升序，天然保证返回按时序排列。
+    """
+    days = max(1, min(days, 365))
+    day_map = {}
+    for i in range(days - 1, -1, -1):
+        d = end - timedelta(days=i)
+        day_map[d] = {"attempts": 0, "correct": 0}
+
+    for r in records:
+        d = (r.created_at + local_offset).date() if r.created_at else end
+        if d in day_map:
+            day_map[d]["attempts"] += 1
+            if r.result == "correct":
+                day_map[d]["correct"] += 1
+
+    return [
+        DashboardDailyTrend(
+            date=d,
+            attempts=agg["attempts"],
+            correct=agg["correct"],
+            correct_rate=agg["correct"] / agg["attempts"] if agg["attempts"] > 0 else 0.0,
+        )
+        for d, agg in day_map.items()
+    ]
+
+
 @router.get("/dashboard", response_model=DashboardResponse)
 async def get_dashboard(
     trend_days: int = 7,
@@ -440,27 +475,9 @@ async def get_dashboard(
         by_result_map[r.result] = by_result_map.get(r.result, 0) + 1
     by_result = [{"result": k, "count": v} for k, v in by_result_map.items()]
 
-    # 近 N 天每日趋势（本地当天为基准；created_at 为 UTC，先换算成环境本地时区）
+    # 近 N 天每日趋势（无数据的天自动补零，见 _build_daily_trend）
     local_offset = datetime.now() - datetime.utcnow()
-    day_map = {}
-    for i in range(trend_days - 1, -1, -1):
-        d = date.today() - timedelta(days=i)
-        day_map[d] = {"attempts": 0, "correct": 0}
-    for r in records:
-        d = (r.created_at + local_offset).date() if r.created_at else date.today()
-        if d in day_map:
-            day_map[d]["attempts"] += 1
-            if r.result == "correct":
-                day_map[d]["correct"] += 1
-    daily_trend = [
-        DashboardDailyTrend(
-            date=d,
-            attempts=agg["attempts"],
-            correct=agg["correct"],
-            correct_rate=agg["correct"] / agg["attempts"] if agg["attempts"] > 0 else 0,
-        )
-        for d, agg in sorted(day_map.items())
-    ]
+    daily_trend = _build_daily_trend(records, trend_days, local_offset, date.today())
 
     # ---- 打卡统计 ----
     checkin_dates = await _get_checkin_dates(db, current_user.id)
