@@ -179,3 +179,42 @@ class DashboardResponse(BaseModel):
     learning_stats: DashboardLearningStats
     daily_trend: List[DashboardDailyTrend]   # 最近 7 天
     checkin_stats: dict                       # current/max streak、累计、上次打卡
+
+# ---- 遗忘曲线 / 效率分析 ----
+class ForgettingPoint(BaseModel):
+    date: date
+    retention: float          # 预计记忆保持率 0~1（基于 Ebbinghaus 指数衰减）
+
+class ForgettingCurveResponse(BaseModel):
+    word_id: Optional[str] = None
+    english: Optional[str] = None
+    stability_days: Optional[float] = None   # 记忆稳定度（取 SM-2 间隔天数）
+    last_reviewed_at: Optional[datetime] = None
+    curve: List[ForgettingPoint]
+
+class WordMasteryItem(BaseModel):
+    word_id: str
+    english: str
+    chinese: str
+    repetitions: int
+    interval_days: int
+    last_reviewed_at: Optional[datetime] = None
+    next_review_at: Optional[datetime] = None
+    retention: Optional[float] = None        # None 表示尚未形成可评估的记忆
+    mastery_level: str
+
+class MasteryResponse(BaseModel):
+    total: int
+    items: List[WordMasteryItem]
+
+class EfficiencyResponse(BaseModel):
+    span: str
+    total_attempts: int
+    correct_count: int
+    correct_rate: float
+    by_result: List[dict]                    # [{result, count}]
+    learned_words: int
+    mastered_words: int
+    weak_words: int
+    retention_avg: Optional[float] = None    # 全部已学词平均记忆保持率
+    per_day_avg: float                       # 日均作答次数

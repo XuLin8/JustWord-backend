@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, func, or_
+import math
 from typing import Optional
 from datetime import datetime, date, timedelta
 
@@ -19,6 +20,11 @@ from ..schemas import (
     DashboardDailyTrend,
     WrongWordResponse,
     WrongWordSummaryResponse,
+    ForgettingCurveResponse,
+    ForgettingPoint,
+    WordMasteryItem,
+    MasteryResponse,
+    EfficiencyResponse,
 )
 from ..services.srs import apply_sm2
 from ..routers.auth import get_current_user
@@ -681,4 +687,189 @@ async def get_dashboard(
             "total_days": len(checkin_dates),
             "last_checkin_date": max(checkin_dates) if checkin_dates else None,
         },
+    )
+
+
+# ============ 遗忘曲线 / 效率分析 ============
+
+def _word_retention(word: WordModel, at: Optional[datetime] = None) -> Optional[float]:
+    """按 Ebbinghaus 指数衰减模型估算某词的当前记忆保持率。
+
+    以 SM-2 复习间隔天数作为记忆稳定度 S，从 last_reviewed_at 起随时间衰减：
+    R(t) = exp(-t / S)。未学过或尚未定间隔的词返回 None（无法评估）。
+    """
+    if (word.repetitions or 0) <= 0 or (word.review_interval or 0) <= 0 or not word.last_reviewed_at:
+        return None
+    at = at or datetime.now()
+    t_days = (at - word.last_reviewed_at).total_seconds() / 86400.0
+    stability = max(float(word.review_interval), 0.5)
+    r = math.exp(-max(t_days, 0.0) / stability)
+    return round(min(max(r, 0.0), 1.0), 3)
+
+
+@router.get("/forgetting-curve", response_model=ForgettingCurveResponse)
+async def get_forgetting_curve(
+    word_id: Optional[str] = None,
+    days: int = 30,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """预测指定词未来 N 天的遗忘曲线；不传 word_id 时返回全部已学词的平均曲线。
+
+    retention 依据 SM-2 间隔天数作为稳定度拟合 Ebbinghaus 指数衰减。
+    """
+    days = max(1, min(days, 365))
+    today = date.today()
+
+    def _points(stability: float):
+        pts = []
+        for i in range(days):
+            d = today + timedelta(days=i)
+            t = (datetime.combine(d, datetime.min.time()) - word_datetime).total_seconds() / 86400.0
+            r = math.exp(-max(t, 0.0) / max(stability, 0.5))
+            pts.append(ForgettingPoint(date=d, retention=round(min(max(r, 0.0), 1.0), 3)))
+        return pts
+
+    if word_id:
+        res = await db.execute(
+            select(WordModel).where(
+                WordModel.id == word_id, WordModel.user_id == current_user.id
+            )
+        )
+        word = res.scalar_one_or_none()
+        if not word:
+            raise HTTPException(status_code=404, detail="单词不存在")
+        word_datetime = word.last_reviewed_at or datetime.now()
+        stability = float(word.review_interval or 0)
+        if (word.repetitions or 0) <= 0 or stability <= 0:
+            return ForgettingCurveResponse(
+                word_id=word.id, english=word.english, stability_days=None,
+                last_reviewed_at=word.last_reviewed_at, curve=[],
+            )
+        return ForgettingCurveResponse(
+            word_id=word.id,
+            english=word.english,
+            stability_days=stability,
+            last_reviewed_at=word.last_reviewed_at,
+            curve=_points(stability),
+        )
+
+    # 汇总：全部已学词的平均稳定度
+    words_res = await db.execute(
+        select(WordModel).where(WordModel.user_id == current_user.id)
+    )
+    learned = [
+        w for w in words_res.scalars().all()
+        if (w.repetitions or 0) > 0 and (w.review_interval or 0) > 0 and w.last_reviewed_at
+    ]
+    if not learned:
+        return ForgettingCurveResponse(curve=[])
+    word_datetime = datetime.now()
+    avg_stability = sum(float(w.review_interval) for w in learned) / len(learned)
+    return ForgettingCurveResponse(
+        stability_days=round(avg_stability, 2), last_reviewed_at=word_datetime, curve=_points(avg_stability),
+    )
+
+
+@router.get("/mastery", response_model=MasteryResponse)
+async def get_word_mastery(
+    page: int = 1,
+    page_size: int = 20,
+    level: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """词级掌握度列表：记忆保持率 + 熟练度，支持按熟练度筛选与分页。"""
+    words_res = await db.execute(
+        select(WordModel).where(WordModel.user_id == current_user.id)
+    )
+    words = [w for w in words_res.scalars().all() if not level or _mastery_bucket(w.repetitions or 0)["label"] == level]
+
+    items = []
+    for w in words:
+        items.append(WordMasteryItem(
+            word_id=w.id,
+            english=w.english,
+            chinese=w.chinese,
+            repetitions=w.repetitions or 0,
+            interval_days=w.review_interval or 0,
+            last_reviewed_at=w.last_reviewed_at,
+            next_review_at=w.next_review_at,
+            retention=_word_retention(w),
+            mastery_level=_mastery_bucket(w.repetitions or 0)["label"],
+        ))
+
+    total = len(items)
+    # 按掌握程度与记忆保持率排序：已掌握优先、保持率低（易遗忘）靠前
+    order = {"未学": 0, "新学": 1, "巩固中": 2, "已掌握": 3}
+    items.sort(key=lambda it: (order.get(it.mastery_level, 0),
+                               it.retention if it.retention is not None else 1.0))
+    start = (max(1, page) - 1) * page_size
+    return MasteryResponse(total=total, items=items[start:start + page_size])
+
+
+@router.get("/efficiency", response_model=EfficiencyResponse)
+async def get_efficiency(
+    span: str = "week",
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """阶段学习效率报告：正确率、结果分布、掌握概况、平均保持率、日均作答。"""
+    if span not in ("week", "month", "all"):
+        raise HTTPException(status_code=400, detail="span 仅支持 week/month/all")
+
+    now = datetime.now()
+    start = {
+        "week": now - timedelta(days=7),
+        "month": now - timedelta(days=30),
+        "all": None,
+    }[span]
+
+    # 记录统计（只取当前阶段内）
+    rec_q = select(LearningRecord).where(LearningRecord.user_id == current_user.id)
+    if start:
+        rec_q = rec_q.where(LearningRecord.created_at >= start)
+    rec_res = await db.execute(rec_q)
+    records = rec_res.scalars().all()
+    attempts = len(records)
+    correct_count = sum(1 for r in records if r.result == "correct")
+    by_result_map = {"correct": 0, "partial": 0, "close": 0, "wrong": 0}
+    for r in records:
+        by_result_map[r.result] = by_result_map.get(r.result, 0) + 1
+    by_result = [{"result": k, "count": v} for k, v in by_result_map.items()]
+
+    # 单词掌握与薄弱概况（全量词，不受 span 限制）
+    words_res = await db.execute(
+        select(WordModel).where(WordModel.user_id == current_user.id)
+    )
+    words = words_res.scalars().all()
+    learned_words = sum(1 for w in words if (w.repetitions or 0) > 0)
+    mastered_words = sum(1 for w in words if (w.repetitions or 0) >= 6)
+    weak_ids = set()
+    weak_res = await db.execute(
+        select(WrongWord.word_id).where(
+            WrongWord.user_id == current_user.id, WrongWord.status == "open"
+        )
+    )
+    weak_ids = set(weak_res.scalars().all())
+    weak_words = len(weak_ids)
+
+    # 平均记忆保持率（已学且可评估的词）
+    retentions = [_word_retention(w) for w in words]
+    retentions = [r for r in retentions if r is not None]
+    retention_avg = round(sum(retentions) / len(retentions), 3) if retentions else None
+
+    per_day_avg = round(attempts / (7 if span == "week" else 30), 2) if span != "all" else 0.0
+
+    return EfficiencyResponse(
+        span=span,
+        total_attempts=attempts,
+        correct_count=correct_count,
+        correct_rate=correct_count / attempts if attempts > 0 else 0,
+        by_result=by_result,
+        learned_words=learned_words,
+        mastered_words=mastered_words,
+        weak_words=weak_words,
+        retention_avg=retention_avg,
+        per_day_avg=per_day_avg,
     )
