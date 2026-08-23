@@ -65,6 +65,22 @@ class LibraryImportResult(BaseModel):
     skipped: int           # 跳过数（已存在或指定 word_id 无效）
     skipped_english: List[str] = []
 
+class WrongWordResponse(BaseModel):
+    word_id: str
+    english: str
+    chinese: str
+    wrong_count: int
+    last_wrong_at: datetime
+    status: str
+
+    class Config:
+        from_attributes = True
+
+class WrongWordSummaryResponse(BaseModel):
+    open_count: int            # 待巩固错题数
+    today_wrong_count: int     # 今天新增答错次数
+    weak_due_count: int        # 错题中今日待复习数（next_review_at 已到期/为空）
+
 class JudgeRequest(BaseModel):
     word: str
     user_answer: str

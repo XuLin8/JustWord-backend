@@ -14,6 +14,7 @@ class User(Base):
     words = relationship("Word", back_populates="user")
     learning_records = relationship("LearningRecord", back_populates="user")
     checkins = relationship("Checkin", back_populates="user")
+    wrong_words = relationship("WrongWord", back_populates="user")
     wordbooks = relationship("Wordbook", back_populates="user")
 
 class Word(Base):
@@ -39,6 +40,7 @@ class Word(Base):
     user = relationship("User", back_populates="words")
     learning_records = relationship("LearningRecord", back_populates="word")
     wordbook = relationship("Wordbook", back_populates="words")
+    wrong_words = relationship("WrongWord", back_populates="word", cascade="all, delete-orphan")
 
 
 class Wordbook(Base):
@@ -76,6 +78,24 @@ class LibraryWord(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     library = relationship("WordLibrary", back_populates="words")
+
+
+class WrongWord(Base):
+    """错题/薄弱词记录（一用户一词一条，复习答错自动累计）"""
+    __tablename__ = "wrong_words"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
+    word_id = Column(String(36), ForeignKey("words.id", ondelete="CASCADE"), nullable=False)
+    wrong_count = Column(Integer, nullable=False, default=1)   # 累计答错次数
+    last_wrong_at = Column(DateTime, default=datetime.utcnow)  # 最近一次答错时间
+    status = Column(String(20), nullable=False, default="open")  # open 待巩固 / resolved 已解决
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (UniqueConstraint("user_id", "word_id", name="uq_wrong_user_word"),)
+
+    user = relationship("User", back_populates="wrong_words")
+    word = relationship("Word", back_populates="wrong_words")
 
 class LearningRecord(Base):
     __tablename__ = "learning_records"
