@@ -184,6 +184,7 @@ mysql -u root -p justword -e "ALTER TABLE words DROP COLUMN updated_at;"
 | 006 | `006_add_user_id_to_learning_records.sql` | 学习记录增加 user_id | 2026-08-24 |
 | 007 | `007_add_srs_fields_to_words.sql` | 单词增加 SM-2 间隔重复调度字段 | 2026-08-24 |
 | 008 | `008_create_checkins_table.sql` | 每日打卡表（连续天数统计） | 2026-08-24 |
+| 009 | `009_create_wordbooks.sql` | 单词本表 + words 增加 wordbook_id 外键 | 2026-08-24 |
 
 ---
 

@@ -22,7 +22,8 @@ def to_word_response(word: WordModel) -> WordResponse:
         chinese=word.chinese,
         created_at=word.created_at,
         updated_at=word.updated_at,
-        meta_data=word.meta_data or {}
+        meta_data=word.meta_data or {},
+        wordbook_id=word.wordbook_id
     )
 
 
@@ -32,12 +33,15 @@ def to_word_response(word: WordModel) -> WordResponse:
 @router.get("/", response_model=List[WordResponse])
 async def get_words(
     q: Optional[str] = None,
+    wordbook_id: Optional[int] = None,
     limit: Optional[int] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """获取当前用户单词列表（支持关键词搜索与可选数量限制）"""
+    """获取当前用户单词列表（支持关键词搜索、按单词本筛选与可选数量限制）"""
     stmt = select(WordModel).where(WordModel.user_id == current_user.id)
+    if wordbook_id is not None:
+        stmt = stmt.where(WordModel.wordbook_id == wordbook_id)
     if q:
         stmt = stmt.where(
             or_(
@@ -66,6 +70,15 @@ async def create_word(word: WordCreate, db: AsyncSession = Depends(get_db), curr
     existing = result.scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=400, detail=f"单词 '{word.english}' 已存在")
+
+    # 校验单词本归属（若指定）
+    if word.wordbook_id is not None:
+        from ..models import Wordbook
+        book_res = await db.execute(
+            select(Wordbook).where(Wordbook.id == word.wordbook_id, Wordbook.user_id == current_user.id)
+        )
+        if not book_res.scalar_one_or_none():
+            raise HTTPException(status_code=404, detail="单词本不存在")
     
     # 创建新单词
     new_word = WordModel(
@@ -75,7 +88,8 @@ async def create_word(word: WordCreate, db: AsyncSession = Depends(get_db), curr
         created_at=datetime.now(),
         updated_at=datetime.now(),
         meta_data=word.meta_data or {},
-        user_id=current_user.id
+        user_id=current_user.id,
+        wordbook_id=word.wordbook_id
     )
     db.add(new_word)
     await db.commit()

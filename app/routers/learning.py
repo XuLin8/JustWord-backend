@@ -169,28 +169,27 @@ def to_review_item(word: WordModel) -> dict:
 
 @router.get("/reviews/due")
 async def get_due_reviews(
+    wordbook_id: Optional[int] = None,
     limit: int = 20,
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """获取当前用户待复习单词队列（含从未曾复习的新词；NULL/已到期的按到期优先排序）"""
+    """获取当前用户待复习单词队列（可按单词本筛选；NULL/已到期的按到期优先排序）"""
     now = datetime.now()
+    conds = (
+        WordModel.user_id == current_user.id,
+        or_(WordModel.next_review_at.is_(None), WordModel.next_review_at <= now),
+    )
+    if wordbook_id is not None:
+        conds = conds + (WordModel.wordbook_id == wordbook_id,)
     base = (
         select(WordModel)
-        .where(
-            WordModel.user_id == current_user.id,
-            or_(WordModel.next_review_at.is_(None), WordModel.next_review_at <= now),
-        )
+        .where(*conds)
         .order_by(WordModel.next_review_at.asc())
     )
     total = await db.execute(
-        select(func.count())
-        .select_from(WordModel)
-        .where(
-            WordModel.user_id == current_user.id,
-            or_(WordModel.next_review_at.is_(None), WordModel.next_review_at <= now),
-        )
+        select(func.count()).select_from(WordModel).where(*conds)
     )
     result = await db.execute(base.offset(offset).limit(limit))
     words = result.scalars().all()

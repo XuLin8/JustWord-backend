@@ -14,6 +14,7 @@ class User(Base):
     words = relationship("Word", back_populates="user")
     learning_records = relationship("LearningRecord", back_populates="user")
     checkins = relationship("Checkin", back_populates="user")
+    wordbooks = relationship("Wordbook", back_populates="user")
 
 class Word(Base):
     __tablename__ = "words"
@@ -25,6 +26,7 @@ class Word(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     user_id = Column(String(36), ForeignKey("users.id"))
     meta_data = Column(JSON, nullable=True, default={})
+    wordbook_id = Column(Integer, ForeignKey("wordbooks.id", ondelete="SET NULL"), nullable=True, default=None)  # 所属单词本
 
     # 间隔重复(SM-2)调度字段
     ef = Column(Float, default=2.5)                    # 易学度因子
@@ -36,6 +38,20 @@ class Word(Base):
     # ✅ 关系定义
     user = relationship("User", back_populates="words")
     learning_records = relationship("LearningRecord", back_populates="word")
+    wordbook = relationship("Wordbook", back_populates="words")
+
+
+class Wordbook(Base):
+    __tablename__ = "wordbooks"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(36), ForeignKey("users.id"))
+    name = Column(String(255), nullable=False)
+    description = Column(String(500), nullable=True, default="")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="wordbooks")
+    words = relationship("Word", back_populates="wordbook", order_by="Word.created_at.desc()")
 
 class LearningRecord(Base):
     __tablename__ = "learning_records"

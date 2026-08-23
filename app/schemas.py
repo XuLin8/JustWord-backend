@@ -6,11 +6,13 @@ class WordCreate(BaseModel):
     chinese: str
     english: str  # ⚠️ 你漏了 english 字段！
     meta_data: Optional[Dict[str, Any]] = {}
+    wordbook_id: Optional[int] = None  # 归属单词本（可空=未分组）
 
 class WordUpdate(BaseModel):
     english: Optional[str] = None
     chinese: Optional[str] = None
     meta_data: Optional[Dict[str, Any]] = None
+    # 单词归属本/移出本请使用 wordbooks 的 add/remove 接口，避免空值歧义
 
 class WordResponse(BaseModel):
     id: str
@@ -19,6 +21,25 @@ class WordResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     meta_data: Dict[str, Any] = {}
+    wordbook_id: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+class WordbookCreate(BaseModel):
+    name: str
+    description: Optional[str] = ""
+
+class WordbookUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+class WordbookResponse(BaseModel):
+    id: int
+    name: str
+    description: str = ""
+    word_count: int = 0
+    created_at: datetime
 
     class Config:
         from_attributes = True
