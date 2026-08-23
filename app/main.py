@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from .database import engine, Base
-from .routers import words, learning, ai, auth, wordbooks, library
+from .routers import words, learning, ai, auth, wordbooks, library, export
 from .exceptions import register_exception_handlers
 
 # 数据库表创建
@@ -45,6 +45,7 @@ app.include_router(words.router, prefix="/api/words", tags=["单词"])
 app.include_router(learning.router, prefix="/api/learning", tags=["学习"])
 app.include_router(wordbooks.router, prefix="/api/wordbooks", tags=["单词本"])
 app.include_router(library.router, prefix="/api/library", tags=["词库"])
+app.include_router(export.router, prefix="/api/export", tags=["导出/备份"])
 app.include_router(ai.router, prefix="/api/ai", tags=["AI"])
 
 @app.get("/api/health")

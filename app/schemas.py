@@ -81,6 +81,12 @@ class WrongWordSummaryResponse(BaseModel):
     today_wrong_count: int     # 今天新增答错次数
     weak_due_count: int        # 错题中今日待复习数（next_review_at 已到期/为空）
 
+class RestoreResponse(BaseModel):
+    added_words: int           # 本次新增的单词数
+    added_wrong_words: int     # 本次补入的错题数
+    added_checkins: int        # 本次补入的打卡数
+    skipped_words: int         # 已存在而未新增的单词数
+
 class JudgeRequest(BaseModel):
     word: str
     user_answer: str
