@@ -1,38 +1,17 @@
 from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
 import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, or_
 from ..database import get_db
 from ..models import Word as WordModel
 from ..models import User
 from ..schemas import WordCreate, WordUpdate, WordResponse
 from ..routers.auth import get_current_user
-from typing import Any, Dict
 
 
 router = APIRouter()
-
-# ============ Pydantic 模型 ============
-class WordCreate(BaseModel):
-    english: str
-    chinese: str
-    meta_data: Optional[Dict[str, Any]] = {}  # ✅ 添加
-
-class WordUpdate(BaseModel):
-    english: Optional[str] = None
-    chinese: Optional[str] = None
-    meta_data: Optional[Dict[str, Any]] = None  # ✅ 添加
-
-class WordResponse(BaseModel):
-    id: str
-    english: str
-    chinese: str
-    created_at: datetime
-    meta_data: Dict[str, Any] = {}  # ✅ 添加
-
 
 # ============ 辅助函数 ============
 def to_word_response(word: WordModel) -> WordResponse:
@@ -51,9 +30,25 @@ def to_word_response(word: WordModel) -> WordResponse:
 
 # ============ GET 所有单词 ============
 @router.get("/", response_model=List[WordResponse])
-async def get_words(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """获取当前用户单词列表"""
-    result = await db.execute(select(WordModel).where(WordModel.user_id == current_user.id))
+async def get_words(
+    q: Optional[str] = None,
+    limit: Optional[int] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """获取当前用户单词列表（支持关键词搜索与可选数量限制）"""
+    stmt = select(WordModel).where(WordModel.user_id == current_user.id)
+    if q:
+        stmt = stmt.where(
+            or_(
+                WordModel.english.like(f"%{q.strip()}%"),
+                WordModel.chinese.like(f"%{q.strip()}%"),
+            )
+        )
+    stmt = stmt.order_by(WordModel.created_at.desc())
+    if limit:
+        stmt = stmt.limit(limit)
+    result = await db.execute(stmt)
     words = result.scalars().all()
     return [to_word_response(w) for w in words]
 

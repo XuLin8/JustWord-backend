@@ -7,7 +7,7 @@
 -- ============================================
 
 -- 执行迁移
-INSERT INTO words (id, english, chinese, metadata) VALUES
+INSERT INTO words (id, english, chinese, meta_data) VALUES
 (UUID(), 'apple', '苹果', JSON_OBJECT(
     'phonetic', JSON_OBJECT('uk', '/ˈæpl/', 'us', '/ˈæpl/'),
     'wordType', 'noun',

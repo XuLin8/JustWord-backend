@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Text, JSON, Float
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Text, JSON, Float, Date, UniqueConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from .database import Base
@@ -12,6 +12,8 @@ class User(Base):
     username = Column(String(255), nullable=False)  # ✅ 确保有这个字段
     created_at = Column(DateTime, default=datetime.utcnow)
     words = relationship("Word", back_populates="user")
+    learning_records = relationship("LearningRecord", back_populates="user")
+    checkins = relationship("Checkin", back_populates="user")
 
 class Word(Base):
     __tablename__ = "words"
@@ -23,6 +25,13 @@ class Word(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     user_id = Column(String(36), ForeignKey("users.id"))
     meta_data = Column(JSON, nullable=True, default={})
+
+    # 间隔重复(SM-2)调度字段
+    ef = Column(Float, default=2.5)                    # 易学度因子
+    review_interval = Column(Integer, default=0)       # 间隔天数
+    repetitions = Column(Integer, default=0)           # 连续答对次数
+    next_review_at = Column(DateTime, nullable=True, default=datetime.utcnow)  # 下次复习时间
+    last_reviewed_at = Column(DateTime, nullable=True) # 上次复习时间
     
     # ✅ 关系定义
     user = relationship("User", back_populates="words")
@@ -33,6 +42,7 @@ class LearningRecord(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     word_id = Column(String(36), ForeignKey("words.id"))
+    user_id = Column(String(36), ForeignKey("users.id"))
     mode = Column(String(20))  # 'en2zh' 或 'zh2en'
     user_answer = Column(Text)
     correct_answer = Column(Text)
@@ -43,3 +53,16 @@ class LearningRecord(Base):
     
     # ✅ 关系定义
     word = relationship("Word", back_populates="learning_records")
+    user = relationship("User", back_populates="learning_records")
+
+
+class Checkin(Base):
+    __tablename__ = "checkins"
+    __table_args__ = (UniqueConstraint("user_id", "date", name="uq_checkin_user_date"),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(36), ForeignKey("users.id"))
+    date = Column(Date, nullable=False)  # 打卡日期
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="checkins")

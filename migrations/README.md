@@ -181,6 +181,9 @@ mysql -u root -p justword -e "ALTER TABLE words DROP COLUMN updated_at;"
 | 003 | `003_create_learning_records.sql` | 创建学习记录表 | 2026-08-20 |
 | 004 | `004_add_metadata_to_words.sql` | 添加 metadata 和 updated_at 字段 | 2026-08-20 |
 | 005 | `005_seed_default_words.sql` | 添加默认示例数据（可选） | 2026-08-20 |
+| 006 | `006_add_user_id_to_learning_records.sql` | 学习记录增加 user_id | 2026-08-24 |
+| 007 | `007_add_srs_fields_to_words.sql` | 单词增加 SM-2 间隔重复调度字段 | 2026-08-24 |
+| 008 | `008_create_checkins_table.sql` | 每日打卡表（连续天数统计） | 2026-08-24 |
 
 ---
 
