@@ -13,6 +13,10 @@ from ..schemas import (
     ReviewSubmit,
     ReviewSummaryResponse,
     CheckinStatusResponse,
+    DashboardResponse,
+    DashboardWordStats,
+    DashboardLearningStats,
+    DashboardDailyTrend,
 )
 from ..services.srs import apply_sm2
 from ..routers.auth import get_current_user
@@ -377,3 +381,113 @@ async def do_checkin(
     db.add(Checkin(user_id=current_user.id, date=today))
     await db.commit()
     return {"checked_today": True, "created": True, "message": "打卡成功"}
+
+
+# ============ 学习统计看板 ============
+
+def _mastery_bucket(reps: int) -> dict:
+    if reps >= 6:
+        return {"label": "已掌握", "count": 0}
+    if reps >= 3:
+        return {"label": "巩固中", "count": 0}
+    if reps >= 1:
+        return {"label": "新学", "count": 0}
+    return {"label": "未学", "count": 0}
+
+
+@router.get("/dashboard", response_model=DashboardResponse)
+async def get_dashboard(
+    trend_days: int = 7,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """学习统计看板：单词掌握概况、SRS 熟练度分布、练习正确率、近 N 天趋势、打卡统计"""
+    now = datetime.now()
+
+    # ---- 单词概况 & 熟练度分布 ----
+    words_res = await db.execute(
+        select(WordModel).where(WordModel.user_id == current_user.id)
+    )
+    words = words_res.scalars().all()
+    total_words = len(words)
+    learned_words = sum(1 for w in words if (w.repetitions or 0) > 0)
+    mastered_words = sum(1 for w in words if (w.repetitions or 0) >= 6)
+
+    bucket_map = {"未学": 0, "新学": 0, "巩固中": 0, "已掌握": 0}
+    for w in words:
+        bucket_map[_mastery_bucket(w.repetitions or 0)["label"]] += 1
+    distribution = [{"label": k, "count": v} for k, v in bucket_map.items()]
+
+    new_words_due = sum(1 for w in words if (w.repetitions or 0) == 0)
+    review_words_due = sum(
+        1
+        for w in words
+        if (w.repetitions or 0) > 0
+        and w.next_review_at is not None
+        and w.next_review_at <= now
+    )
+
+    # ---- 学习记录统计 & 近 N 天趋势 ----
+    rec_res = await db.execute(
+        select(LearningRecord).where(LearningRecord.user_id == current_user.id)
+    )
+    records = rec_res.scalars().all()
+    attempts = len(records)
+    correct_count = sum(1 for r in records if r.result == "correct")
+
+    by_result_map = {"correct": 0, "partial": 0, "close": 0, "wrong": 0}
+    for r in records:
+        by_result_map[r.result] = by_result_map.get(r.result, 0) + 1
+    by_result = [{"result": k, "count": v} for k, v in by_result_map.items()]
+
+    # 近 N 天每日趋势（本地当天为基准；created_at 为 UTC，先换算成环境本地时区）
+    local_offset = datetime.now() - datetime.utcnow()
+    day_map = {}
+    for i in range(trend_days - 1, -1, -1):
+        d = date.today() - timedelta(days=i)
+        day_map[d] = {"attempts": 0, "correct": 0}
+    for r in records:
+        d = (r.created_at + local_offset).date() if r.created_at else date.today()
+        if d in day_map:
+            day_map[d]["attempts"] += 1
+            if r.result == "correct":
+                day_map[d]["correct"] += 1
+    daily_trend = [
+        DashboardDailyTrend(
+            date=d,
+            attempts=agg["attempts"],
+            correct=agg["correct"],
+            correct_rate=agg["correct"] / agg["attempts"] if agg["attempts"] > 0 else 0,
+        )
+        for d, agg in sorted(day_map.items())
+    ]
+
+    # ---- 打卡统计 ----
+    checkin_dates = await _get_checkin_dates(db, current_user.id)
+    current, max_streak = compute_streaks(checkin_dates)
+
+    word_stats = DashboardWordStats(
+        total=total_words,
+        learned=learned_words,
+        mastered=mastered_words,
+        new_words_due=new_words_due,
+        review_words_due=review_words_due,
+        distribution=distribution,
+    )
+    learning_stats = DashboardLearningStats(
+        total_attempts=attempts,
+        correct_count=correct_count,
+        correct_rate=correct_count / attempts if attempts > 0 else 0,
+        by_result=by_result,
+    )
+    return DashboardResponse(
+        word_stats=word_stats,
+        learning_stats=learning_stats,
+        daily_trend=daily_trend,
+        checkin_stats={
+            "current_streak": current,
+            "max_streak": max_streak,
+            "total_days": len(checkin_dates),
+            "last_checkin_date": max(checkin_dates) if checkin_dates else None,
+        },
+    )

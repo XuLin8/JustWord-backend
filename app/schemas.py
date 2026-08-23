@@ -89,3 +89,29 @@ class CheckinStatusResponse(BaseModel):
     max_streak: int
     total_days: int
     last_checkin_date: Optional[date] = None
+
+class DashboardWordStats(BaseModel):
+    total: int                 # 总单词数
+    learned: int               # 已学（repetitions > 0）
+    mastered: int              # 已掌握（repetitions >= 6）
+    new_words_due: int         # 今日待学新词
+    review_words_due: int      # 今日待复习词
+    distribution: List[dict]   # 熟练度分布 [{label, count}]
+
+class DashboardLearningStats(BaseModel):
+    total_attempts: int
+    correct_count: int
+    correct_rate: float
+    by_result: List[dict]      # [{result, count}]
+
+class DashboardDailyTrend(BaseModel):
+    date: date
+    attempts: int
+    correct: int
+    correct_rate: float
+
+class DashboardResponse(BaseModel):
+    word_stats: DashboardWordStats
+    learning_stats: DashboardLearningStats
+    daily_trend: List[DashboardDailyTrend]   # 最近 7 天
+    checkin_stats: dict                       # current/max streak、累计、上次打卡
