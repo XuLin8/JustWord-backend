@@ -5,12 +5,16 @@ from typing import Optional, Dict, Any, List
 class WordCreate(BaseModel):
     chinese: str
     english: str  # ⚠️ 你漏了 english 字段！
+    phonetic: Optional[str] = None        # 音标，可空
+    part_of_speech: Optional[str] = None  # 词性缩写，如 v./n./adj.
     meta_data: Optional[Dict[str, Any]] = {}
     wordbook_id: Optional[int] = None  # 归属单词本（可空=未分组）
 
 class WordUpdate(BaseModel):
     english: Optional[str] = None
     chinese: Optional[str] = None
+    phonetic: Optional[str] = None
+    part_of_speech: Optional[str] = None
     meta_data: Optional[Dict[str, Any]] = None
     # 单词归属本/移出本请使用 wordbooks 的 add/remove 接口，避免空值歧义
 
@@ -18,6 +22,8 @@ class WordResponse(BaseModel):
     id: str
     english: str
     chinese: str
+    phonetic: Optional[str] = None
+    part_of_speech: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     meta_data: Dict[str, Any] = {}
@@ -54,6 +60,8 @@ class LibraryWordResponse(BaseModel):
     id: int
     english: str
     chinese: str
+    phonetic: Optional[str] = None
+    part_of_speech: Optional[str] = None
 
 class LibraryImportRequest(BaseModel):
     wordbook_id: Optional[int] = None   # 导入后归属的单词本

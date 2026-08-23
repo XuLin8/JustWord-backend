@@ -20,6 +20,8 @@ def to_word_response(word: WordModel) -> WordResponse:
         id=word.id,
         english=word.english,
         chinese=word.chinese,
+        phonetic=word.phonetic,
+        part_of_speech=word.part_of_speech,
         created_at=word.created_at,
         updated_at=word.updated_at,
         meta_data=word.meta_data or {},
@@ -85,6 +87,8 @@ async def create_word(word: WordCreate, db: AsyncSession = Depends(get_db), curr
         id=str(uuid.uuid4()),
         english=word.english.strip(),
         chinese=word.chinese.strip(),
+        phonetic=word.phonetic.strip() if word.phonetic else None,
+        part_of_speech=word.part_of_speech.strip() if word.part_of_speech else None,
         created_at=datetime.now(),
         updated_at=datetime.now(),
         meta_data=word.meta_data or {},
@@ -149,7 +153,13 @@ async def update_word(
         if word.meta_data is None:
             word.meta_data = {}
         word.meta_data.update(word_update.meta_data)
-    
+
+    if word_update.phonetic is not None:
+        word.phonetic = word_update.phonetic.strip()
+
+    if word_update.part_of_speech is not None:
+        word.part_of_speech = word_update.part_of_speech.strip()
+
     word.updated_at = datetime.now()
 
     await db.commit()

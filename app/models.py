@@ -24,6 +24,8 @@ class Word(Base):
     id = Column(String(36), primary_key=True)
     english = Column(String(255), nullable=False)
     chinese = Column(String(255), nullable=False)
+    phonetic = Column(String(64), nullable=True)         # 音标，可空
+    part_of_speech = Column(String(32), nullable=True)   # 词性缩写，如 v./n./adj.
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     user_id = Column(String(36), ForeignKey("users.id"))
@@ -76,6 +78,8 @@ class LibraryWord(Base):
     library_id = Column(Integer, ForeignKey("word_libraries.id", ondelete="CASCADE"), nullable=False)
     english = Column(String(255), nullable=False)
     chinese = Column(String(255), nullable=False)
+    phonetic = Column(String(64), nullable=True)         # 音标，可空
+    part_of_speech = Column(String(32), nullable=True)   # 词性缩写，如 v./n./adj.
     created_at = Column(DateTime, default=datetime.utcnow)
 
     library = relationship("WordLibrary", back_populates="words")

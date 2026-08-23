@@ -71,7 +71,9 @@ async def get_library_words(
         "total": total,
         "limit": limit,
         "offset": offset,
-        "words": [LibraryWordResponse(id=w.id, english=w.english, chinese=w.chinese) for w in rows],
+        "words": [LibraryWordResponse(id=w.id, english=w.english, chinese=w.chinese,
+                                      phonetic=w.phonetic, part_of_speech=w.part_of_speech)
+                  for w in rows],
     }
 
 
@@ -124,6 +126,8 @@ async def import_library(
             id=str(uuid.uuid4()),
             english=en,
             chinese=lw.chinese.strip(),
+            phonetic=lw.phonetic,
+            part_of_speech=lw.part_of_speech,
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),
             meta_data={},

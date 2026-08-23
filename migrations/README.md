@@ -189,6 +189,7 @@ mysql -u root -p justword -e "ALTER TABLE words DROP COLUMN updated_at;"
 | 011 | `011_expand_library1_to_full_cet4.sql` | 四级库(id=1)扩建为完整四级词表（数据在 `data/cet4.tsv`，用 `load_cet4.py` 加载） | 2026-08-24 |
 | 012 | `012_create_wrong_words.sql` | 错题/薄弱词表（复习答错自动累计） | 2026-08-24 |
 | 013 | `013_create_achievements.sql` | 成就/徽章表（一用户一成就一条，解锁时间落库） | 2026-08-24 |
+| 014 | `014_add_phonetic_pos.sql` | words / library_words 增加音标(phonetic)与词性(part_of_speech)字段 | 2026-08-24 |
 
 ---
 
