@@ -6,6 +6,7 @@ from .database import engine, Base
 from .routers import (
     words, ai, auth, wordbooks, library, export, achievements,
     records, reviews, wrong_words, checkin, dashboard, analysis,
+    preferences, progress, sessions,
 )
 from .exceptions import register_exception_handlers
 
@@ -58,6 +59,9 @@ app.include_router(wrong_words.router, prefix="/api/learning", tags=["学习-错
 app.include_router(checkin.router, prefix="/api/learning", tags=["学习-打卡"])
 app.include_router(dashboard.router, prefix="/api/learning", tags=["学习-看板"])
 app.include_router(analysis.router, prefix="/api/learning", tags=["学习-分析"])
+app.include_router(preferences.router, prefix="/api/preferences", tags=["偏好"])
+app.include_router(progress.router, prefix="/api", tags=["进度"])
+app.include_router(sessions.router, prefix="/api/learning", tags=["学习-会话/统计"])
 
 @app.get("/api/health")
 async def health():

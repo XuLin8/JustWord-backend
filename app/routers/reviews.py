@@ -6,10 +6,11 @@ from typing import Optional
 from datetime import datetime
 
 from ..database import get_db
-from ..models import LearningRecord, User, Word as WordModel, WrongWord
+from ..models import LearningRecord, User, Word as WordModel, WrongWord, WordSnapshot
 from ..schemas import ReviewSubmit, ReviewSummaryResponse
 from ..services.srs import apply_sm2
-from ..services.learning_common import to_review_item
+from ..services.learning_common import to_review_item, local_offset
+from ..services import daily_stats
 from ..deps import get_current_user
 
 router = APIRouter()
@@ -134,10 +135,11 @@ async def submit_review(
     if not word:
         raise HTTPException(status_code=404, detail="单词不存在")
 
+    is_new = (word.repetitions or 0) == 0  # SM-2 应用前判定新学/复习
     schedule = apply_sm2(word, payload.result)
     db.add(word)
 
-    # 同步写入一条学习记录（供统计追溯）
+    # 同步写入一条学习记录（供统计追溯；mode 传规则标识，result 支持 partial）
     db.add(LearningRecord(
         word_id=word.id,
         user_id=current_user.id,
@@ -146,11 +148,27 @@ async def submit_review(
         correct_answer=payload.correct_answer or "",
         result=payload.result,
         score=schedule["quality"],
+        response_ms=payload.response_ms,
         feedback=payload.feedback,
+        is_new=is_new,
+    ))
+
+    # SM-2 调度历史快照（记忆曲线真实演变数据源）
+    db.add(WordSnapshot(
+        user_id=current_user.id,
+        word_id=word.id,
+        repetitions=schedule["repetitions"],
+        interval_days=schedule["interval_days"],
+        ef=schedule["easiness_factor"],
+        next_review_at=schedule["next_review_at"],
     ))
 
     # 答错自动计入错题本
     await _upsert_wrong_word(db, current_user.id, word, payload.result)
+
+    # 懒聚合：提交后回填当日 DailyStat
+    offset = local_offset()
+    await daily_stats.recompute_day(db, current_user.id, daily_stats.current_learning_date(offset), offset)
 
     await db.commit()
     await db.refresh(word)

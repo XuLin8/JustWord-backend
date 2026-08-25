@@ -31,11 +31,15 @@ def register_exception_handlers(app: FastAPI):
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):
         logger.warning(f"HTTP异常: {exc.detail}")
+        # detail 支持两种形态：纯字符串，或 {"message": ..., "remaining": ...} 等结构化字典
+        message = exc.detail if isinstance(exc.detail, str) else (exc.detail.get("message") if exc.detail else None)
+        structured = exc.detail if isinstance(exc.detail, dict) else None
         return JSONResponse(
             status_code=exc.status_code,
             content=ErrorResponse(
                 code=exc.status_code,
-                message=exc.detail or "请求失败"
+                message=message or "请求失败",
+                detail=structured
             ).to_dict()
         )
     

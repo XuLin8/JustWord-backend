@@ -7,7 +7,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
-from ..models import User, Word as WordModel, WordLibrary, LibraryWord, Wordbook
+from ..models import User, Word as WordModel, WordLibrary, LibraryWord, Wordbook, UserLibrarySubscription
 from ..schemas import (
     LibraryResponse,
     LibraryWordResponse,
@@ -42,6 +42,21 @@ async def list_libraries(db: AsyncSession = Depends(get_db)):
                         description=lib.description or "", words_count=count)
         for lib, count in rows.all()
     ]
+
+
+# ============ 已订阅词库（服务端为准，账号级） ============
+@router.get("/enrolled")
+async def enrolled_libraries(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """返回当前用户已订阅的词库 ID 列表（服务端为唯一事实来源，替代前端本地存储）"""
+    rows = await db.execute(
+        select(UserLibrarySubscription.library_id)
+        .where(UserLibrarySubscription.user_id == current_user.id)
+        .order_by(UserLibrarySubscription.created_at.asc())
+    )
+    return [rid for (rid,) in rows.all()]
 
 
 # ============ 词库详情（词列表，支持搜索与分页） ============
@@ -88,6 +103,16 @@ async def import_library(
 ):
     """把词库中的词复制进当前用户的 words（可按 word_ids 选词、可落到某个单词本）"""
     lib = await _get_library(db, lib_id)
+
+    # 记录订阅关系（服务端为准，幂等；新用户订阅即在此落库）
+    sub_exists = await db.execute(
+        select(UserLibrarySubscription).where(
+            UserLibrarySubscription.user_id == current_user.id,
+            UserLibrarySubscription.library_id == lib_id,
+        )
+    )
+    if not sub_exists.scalar_one_or_none():
+        db.add(UserLibrarySubscription(user_id=current_user.id, library_id=lib_id))
 
     # 校验目标单词本归属
     wordbook_id = None
@@ -145,3 +170,24 @@ async def import_library(
         skipped=len(skipped_english),
         skipped_english=skipped_english,
     )
+
+
+# ============ 取消订阅（仅移除订阅关系，保留已导入单词与学习记录） ============
+@router.delete("/{lib_id}/subscribe")
+async def unsubscribe_library(
+    lib_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    res = await db.execute(
+        select(UserLibrarySubscription).where(
+            UserLibrarySubscription.user_id == current_user.id,
+            UserLibrarySubscription.library_id == lib_id,
+        )
+    )
+    sub = res.scalar_one_or_none()
+    if not sub:
+        raise HTTPException(status_code=404, detail="未订阅该词库")
+    await db.delete(sub)
+    await db.commit()
+    return {"unsubscribed": True, "library_id": lib_id}

@@ -131,3 +131,14 @@ def build_daily_trend(
         )
         for d, agg in day_map.items()
     ]
+
+def learning_date_of(utc_dt: datetime, offset: Optional[timedelta] = None) -> date:
+    """把 UTC 时间换算到学习日：本地时间减去 2 小时后取日期（每日 02:00 边界归日）"""
+    offset = offset or local_offset()
+    return (utc_dt + offset - timedelta(hours=2)).date()
+
+
+def current_learning_date(offset: Optional[timedelta] = None) -> date:
+    """当前学习日（每日 02:00 为边界）"""
+    offset = offset or local_offset()
+    return (datetime.now() - timedelta(hours=2)).date()

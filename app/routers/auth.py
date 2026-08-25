@@ -132,7 +132,7 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     if result.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="用户名已被使用")
     new_user = User(
-        id=str(uuid.uuid4()),
+        id=str(uuid4()),
         email=req.email,
         username=req.username,
         password_hash=hash_password(req.password),

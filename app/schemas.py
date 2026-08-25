@@ -145,9 +145,10 @@ class LearningStatsResponse(BaseModel):
 class ReviewSubmit(BaseModel):
     word_id: str
     result: str  # 'correct', 'partial', 'close', 'wrong'
-    mode: Optional[str] = "review"  # 可标注 'learn' / 'review'
+    mode: Optional[str] = "review"  # 'judge'/'listen'/'choose'/'table'/'tworound'/'review'
     user_answer: Optional[str] = ""
     correct_answer: Optional[str] = ""
+    response_ms: Optional[int] = None   # 该次判定反应耗时（毫秒）
     feedback: Optional[str] = None
 
 class ReviewSummaryResponse(BaseModel):
@@ -244,3 +245,45 @@ class AchievementResponse(BaseModel):
     items: List[AchievementItem]
     unlocked_count: int
     total_count: int
+
+# ---- 偏好 / 进度 / 会话 / 每日聚合 ----
+class PreferencesResponse(BaseModel):
+    recitation_rule: str
+    daily_target: int
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class PreferencesUpdate(BaseModel):
+    recitation_rule: Optional[str] = None
+    daily_target: Optional[int] = None
+
+
+class ProgressResponse(BaseModel):
+    learning_date: date
+    daily_target: int
+    today_correct: int
+    progress_percent: float
+    checked_today: bool
+    remaining: int
+
+
+class SessionReport(BaseModel):
+    duration_seconds: int
+    mode: Optional[str] = None
+    date: Optional[date] = None   # 缺省 = 当前学习日
+
+
+class DailyStatItem(BaseModel):
+    date: date
+    attempts: int
+    correct_count: int
+    partial_count: int
+    wrong_count: int
+    distinct_words: int
+    duration_seconds: int
+    avg_response_ms: int
+    new_learned: int
+    review_learned: int

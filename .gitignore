@@ -39,3 +39,6 @@ logs/
 *.tmp
 *.temp
 .DS_Store
+# 大型词典数据源 / 临时调试
+migrations/data/*.csv
+_g.txt
