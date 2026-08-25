@@ -72,7 +72,8 @@ async def get_library_words(
         "limit": limit,
         "offset": offset,
         "words": [LibraryWordResponse(id=w.id, english=w.english, chinese=w.chinese,
-                                      phonetic=w.phonetic, part_of_speech=w.part_of_speech)
+                                      phonetic=w.phonetic, part_of_speech=w.part_of_speech,
+                                      example=w.example)
                   for w in rows],
     }
 

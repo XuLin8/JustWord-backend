@@ -80,6 +80,7 @@ class LibraryWord(Base):
     chinese = Column(String(255), nullable=False)
     phonetic = Column(String(64), nullable=True)         # 音标，可空
     part_of_speech = Column(String(32), nullable=True)   # 词性缩写，如 v./n./adj.
+    example = Column(String(500), nullable=True)         # 例句，可空（ECDICT 英文释义）
     created_at = Column(DateTime, default=datetime.utcnow)
 
     library = relationship("WordLibrary", back_populates="words")
@@ -144,3 +145,16 @@ class Achievement(Base):
     unlocked_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="achievements")
+class RefreshToken(Base):
+    """登录刷新令牌（服务端存储，支持撤销与轮换）"""
+    __tablename__ = "refresh_tokens"
+
+    id = Column(String(36), primary_key=True)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    token_hash = Column(String(128), unique=True, nullable=False)  # refresh token 的 SHA-256 摘要
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    revoked_at = Column(DateTime, nullable=True)     # 撤销时间（登出/轮换/失效）
+    replaced_by_id = Column(String(36), nullable=True)  # 轮换后的新 refresh token id
+
+    user = relationship("User", backref="refresh_tokens")

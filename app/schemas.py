@@ -62,6 +62,7 @@ class LibraryWordResponse(BaseModel):
     chinese: str
     phonetic: Optional[str] = None
     part_of_speech: Optional[str] = None
+    example: Optional[str] = None
 
 class LibraryImportRequest(BaseModel):
     wordbook_id: Optional[int] = None   # 导入后归属的单词本
