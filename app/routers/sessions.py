@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import timedelta
 
 from ..database import get_db
-from ..models import User, DailyStat
+from ..models import User, DailyStat, WordSnapshot
 from ..schemas import SessionReport, DailyStatItem
 from ..services import daily_stats
 from ..services.learning_common import local_offset
@@ -70,5 +70,33 @@ async def get_daily_stats(
                 review_learned=r.review_learned or 0,
             )
             for r in rows
+        ],
+    }
+
+
+@router.get("/stats/snapshots")
+async def get_word_snapshots(
+    word_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """某单词的 SM-2 调度历史快照（记忆曲线 EF 演变数据源）。"""
+    res = await db.execute(
+        select(WordSnapshot)
+        .where(WordSnapshot.user_id == current_user.id, WordSnapshot.word_id == word_id)
+        .order_by(WordSnapshot.captured_at)
+    )
+    rows = res.scalars().all()
+    return {
+        "word_id": word_id,
+        "items": [
+            {
+                "captured_at": s.captured_at.isoformat() if s.captured_at else None,
+                "repetitions": s.repetitions,
+                "interval_days": s.interval_days,
+                "ef": s.ef,
+                "next_review_at": s.next_review_at.isoformat() if s.next_review_at else None,
+            }
+            for s in rows
         ],
     }
