@@ -2,12 +2,18 @@ from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, func
+from sqlalchemy import select, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
 from ..models import User, Wordbook, Word as WordModel
-from ..schemas import WordbookCreate, WordbookUpdate, WordbookResponse, WordResponse
+from ..schemas import (
+    WordbookCreate,
+    WordbookUpdate,
+    WordbookResponse,
+    WordbookStatsResponse,
+    WordResponse,
+)
 from ..deps import get_current_user
 from ..routers.words import to_word_response
 
@@ -66,6 +72,45 @@ async def list_wordbooks(
         for book, count in rows.all()
     ]
 
+
+
+
+# ============ 单词本学习占比统计 ============
+@router.get("/stats", response_model=List[WordbookStatsResponse])
+async def get_wordbook_stats(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """各单词本学习进度统计（总词数/已学/已掌握及比率）"""
+    rows = await db.execute(
+        select(
+            Wordbook,
+            func.count(WordModel.id).label("total"),
+            func.sum(case((WordModel.repetitions > 0, 1), else_=0)).label("learned"),
+            func.sum(case((WordModel.repetitions >= 6, 1), else_=0)).label("mastered"),
+        )
+        .outerjoin(WordModel, WordModel.wordbook_id == Wordbook.id)
+        .where(Wordbook.user_id == current_user.id)
+        .group_by(Wordbook.id)
+        .order_by(Wordbook.created_at.desc())
+    )
+    result = []
+    for book, total, learned, mastered in rows.all():
+        total = total or 0
+        learned = learned or 0
+        mastered = mastered or 0
+        result.append(
+            WordbookStatsResponse(
+                id=book.id,
+                name=book.name,
+                total=total,
+                learned=learned,
+                mastered=mastered,
+                learned_rate=round(learned / total, 4) if total else 0,
+                mastered_rate=round(mastered / total, 4) if total else 0,
+            )
+        )
+    return result
 
 # ============ 单词本详情（含单词列表） ============
 @router.get("/{book_id}")

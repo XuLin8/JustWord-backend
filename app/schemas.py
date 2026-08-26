@@ -50,6 +50,16 @@ class WordbookResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class WordbookStatsResponse(BaseModel):
+    """单词本学习占比统计（总词数/已学/已掌握及比率）"""
+    id: int
+    name: str
+    total: int = 0             # 总词数
+    learned: int = 0           # 已学（repetitions > 0）
+    mastered: int = 0          # 已掌握（repetitions >= 6）
+    learned_rate: float = 0    # 已学占比
+    mastered_rate: float = 0   # 掌握占比
+
 class LibraryResponse(BaseModel):
     id: int
     name: str
