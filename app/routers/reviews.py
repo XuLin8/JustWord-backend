@@ -38,6 +38,7 @@ async def _upsert_wrong_word(db: AsyncSession, user_id: str, word: WordModel, re
 async def get_due_reviews(
     wordbook_id: Optional[int] = None,
     weak_only: bool = False,
+    favorited_only: bool = False,
     limit: int = 20,
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
@@ -45,7 +46,8 @@ async def get_due_reviews(
 ):
     """获取当前用户待复习单词队列。
 
-    可按单词本(wordbook_id)筛选；weak_only=True 仅返回待巩固的错题/薄弱词。
+    可按单词本(wordbook_id)筛选；weak_only=True 仅返回待巩固的错题/薄弱词；
+    favorited_only=True 仅返回已收藏（生词本）的单词。
     NULL/已到期的按到期优先排序。
     """
     now = datetime.now()
@@ -64,6 +66,8 @@ async def get_due_reviews(
                 )
             ),
         )
+    if favorited_only:
+        conds = conds + (WordModel.favorited_at.is_not(None),)
     base = (
         select(WordModel)
         .where(*conds)

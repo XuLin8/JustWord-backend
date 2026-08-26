@@ -38,6 +38,7 @@ class Word(Base):
     repetitions = Column(Integer, default=0)           # 连续答对次数
     next_review_at = Column(DateTime, nullable=True, default=datetime.utcnow)  # 下次复习时间
     last_reviewed_at = Column(DateTime, nullable=True) # 上次复习时间
+    favorited_at = Column(DateTime, nullable=True)     # 收藏时间（非空=已收藏，生词本）
 
     # ✅ 关系定义
     user = relationship("User", back_populates="words")

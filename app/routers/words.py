@@ -7,7 +7,7 @@ from sqlalchemy import select, delete, or_
 from ..database import get_db
 from ..models import Word as WordModel
 from ..models import User
-from ..schemas import WordCreate, WordUpdate, WordResponse
+from ..schemas import WordCreate, WordUpdate, WordResponse, FavoriteToggle
 from ..deps import get_current_user
 
 
@@ -25,7 +25,8 @@ def to_word_response(word: WordModel) -> WordResponse:
         created_at=word.created_at,
         updated_at=word.updated_at,
         meta_data=word.meta_data or {},
-        wordbook_id=word.wordbook_id
+        wordbook_id=word.wordbook_id,
+        favorited_at=word.favorited_at,
     )
 
 
@@ -37,10 +38,11 @@ async def get_words(
     q: Optional[str] = None,
     wordbook_id: Optional[int] = None,
     limit: Optional[int] = None,
+    favorited: Optional[bool] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """获取当前用户单词列表（支持关键词搜索、按单词本筛选与可选数量限制）"""
+    """获取当前用户单词列表（支持关键词搜索、按单词本/收藏筛选与可选数量限制）"""
     stmt = select(WordModel).where(WordModel.user_id == current_user.id)
     if wordbook_id is not None:
         stmt = stmt.where(WordModel.wordbook_id == wordbook_id)
@@ -50,6 +52,10 @@ async def get_words(
                 WordModel.english.like(f"%{q.strip()}%"),
                 WordModel.chinese.like(f"%{q.strip()}%"),
             )
+        )
+    if favorited is not None:
+        stmt = stmt.where(
+            WordModel.favorited_at.is_not(None) if favorited else WordModel.favorited_at.is_(None)
         )
     stmt = stmt.order_by(WordModel.created_at.desc())
     if limit:
@@ -165,6 +171,29 @@ async def update_word(
     await db.commit()
     await db.refresh(word)
     return to_word_response(word)
+
+# ============ PUT 收藏 / 取消收藏 ============
+@router.put("/{word_id}/favorite", response_model=WordResponse)
+async def toggle_favorite(
+    word_id: str,
+    body: FavoriteToggle,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """收藏（favorited=true）或取消收藏（favorited=false）一个单词。"""
+    result = await db.execute(select(WordModel).where(
+        WordModel.id == word_id,
+        WordModel.user_id == current_user.id
+    ))
+    word = result.scalar_one_or_none()
+    if not word:
+        raise HTTPException(status_code=404, detail="单词不存在")
+    word.favorited_at = datetime.now() if body.favorited else None
+    word.updated_at = datetime.now()
+    await db.commit()
+    await db.refresh(word)
+    return to_word_response(word)
+
 
 # ============ DELETE 删除单词 ============
 @router.delete("/{word_id}")

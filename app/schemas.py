@@ -28,9 +28,14 @@ class WordResponse(BaseModel):
     updated_at: datetime
     meta_data: Dict[str, Any] = {}
     wordbook_id: Optional[int] = None
+    favorited_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
+
+class FavoriteToggle(BaseModel):
+    """收藏 / 取消收藏某个单词"""
+    favorited: bool = True
 
 class WordbookCreate(BaseModel):
     name: str

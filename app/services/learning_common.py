@@ -41,6 +41,7 @@ def to_review_item(word: WordModel) -> dict:
         "repetitions": word.repetitions or 0,
         "interval_days": word.review_interval or 0,
         "next_review_at": word.next_review_at,
+        "favorited": word.favorited_at is not None,
     }
 
 
