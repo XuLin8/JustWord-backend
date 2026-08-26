@@ -34,6 +34,10 @@ class LoginRequest(BaseModel):
     email: str
     password: str
 
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
 class RefreshRequest(BaseModel):
     refresh_token: str
 
@@ -187,6 +191,23 @@ async def refresh(req: RefreshRequest, db: AsyncSession = Depends(get_db)):
         token_type="bearer",
         expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
+
+@router.put("/password", response_model=dict)
+async def change_password(
+    req: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """修改密码：校验原密码，更新为新密码哈希"""
+    if not verify_password(req.old_password, current_user.password_hash):
+        raise HTTPException(status_code=400, detail="原密码错误")
+    if len(req.new_password) < 6:
+        raise HTTPException(status_code=400, detail="新密码至少 6 位")
+    if verify_password(req.new_password, current_user.password_hash):
+        raise HTTPException(status_code=400, detail="新密码不能与原密码相同")
+    current_user.password_hash = hash_password(req.new_password)
+    await db.commit()
+    return {"message": "密码修改成功"}
 
 @router.get("/me", response_model=UserResponse)
 async def get_me(current_user: User = Depends(get_current_user)):
