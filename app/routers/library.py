@@ -20,6 +20,18 @@ from ..deps import get_current_user
 router = APIRouter()
 
 
+def _library_tags(lib) -> List[str]:
+    """词库标签：优先取库上配置，否则按名称推断（兼容未回填的数据）。"""
+    if getattr(lib, "tags", None):
+        return [str(x) for x in lib.tags]
+    name = lib.name or ""
+    for kw in ("四级", "六级", "考研", "托福", "雅思", "GRE", "高考", "专四", "专八", "商务英语"):
+        if kw in name:
+            return [kw]
+    return []
+
+
+
 async def _get_library(db: AsyncSession, lib_id: int) -> WordLibrary:
     res = await db.execute(select(WordLibrary).where(WordLibrary.id == lib_id))
     lib = res.scalar_one_or_none()
@@ -39,7 +51,8 @@ async def list_libraries(db: AsyncSession = Depends(get_db)):
     )
     return [
         LibraryResponse(id=lib.id, name=lib.name,
-                        description=lib.description or "", words_count=count)
+                        description=lib.description or "", words_count=count,
+                        tags=_library_tags(lib))
         for lib, count in rows.all()
     ]
 
@@ -88,7 +101,8 @@ async def get_library_words(
         "offset": offset,
         "words": [LibraryWordResponse(id=w.id, english=w.english, chinese=w.chinese,
                                       phonetic=w.phonetic, part_of_speech=w.part_of_speech,
-                                      example=w.example)
+                                      example=w.example,
+                                      tags=(w.tags or _library_tags(lib)))
                   for w in rows],
     }
 
@@ -156,7 +170,7 @@ async def import_library(
             part_of_speech=lw.part_of_speech,
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),
-            meta_data={},
+            meta_data={"tags": _library_tags(lib)},
             user_id=current_user.id,
             wordbook_id=wordbook_id,
         ))

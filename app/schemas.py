@@ -66,6 +66,7 @@ class WordbookStatsResponse(BaseModel):
     mastered_rate: float = 0   # 掌握占比
 
 class LibraryResponse(BaseModel):
+    tags: List[str] = []             # 词库标签，如 ["四级"]
     id: int
     name: str
     description: str = ""
@@ -78,6 +79,7 @@ class LibraryWordResponse(BaseModel):
     phonetic: Optional[str] = None
     part_of_speech: Optional[str] = None
     example: Optional[str] = None
+    tags: List[str] = []             # 词条标签
 
 class LibraryImportRequest(BaseModel):
     wordbook_id: Optional[int] = None   # 导入后归属的单词本

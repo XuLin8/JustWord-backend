@@ -67,6 +67,7 @@ class WordLibrary(Base):
     name = Column(String(255), nullable=False)
     description = Column(String(500), nullable=True, default="")
     words_count = Column(Integer, nullable=False, default=0)  # 词库内单词数
+    tags = Column(JSON, nullable=True, default=[])            # 词库标签，如 ["四级","高频"]；导入时随词复制到用户单词
     created_at = Column(DateTime, default=datetime.utcnow)
 
     words = relationship("LibraryWord", back_populates="library", order_by="LibraryWord.english")
@@ -82,6 +83,7 @@ class LibraryWord(Base):
     phonetic = Column(String(64), nullable=True)         # 音标，可空
     part_of_speech = Column(String(32), nullable=True)   # 词性缩写，如 v./n./adj.
     example = Column(String(500), nullable=True)         # 例句，可空（ECDICT 英文释义）
+    tags = Column(JSON, nullable=True, default=[])       # 词条标签（未单独标注时回退到词库标签）
     created_at = Column(DateTime, default=datetime.utcnow)
 
     library = relationship("WordLibrary", back_populates="words")
