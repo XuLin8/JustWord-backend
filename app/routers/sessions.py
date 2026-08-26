@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import timedelta
 
 from ..database import get_db
-from ..models import User, DailyStat, WordSnapshot
+from ..models import User, DailyStat, WordSnapshot, LearningRecord
 from ..schemas import SessionReport, DailyStatItem
 from ..services import daily_stats
 from ..services.learning_common import local_offset
@@ -40,9 +40,20 @@ async def get_daily_stats(
     today = daily_stats.current_learning_date(offset)
     from_d = today - timedelta(days=days - 1)
 
-    # 懒聚合：回填最近 N 天缺失的学习日
-    for i in range(days):
-        await daily_stats.recompute_day(db, current_user.id, from_d + timedelta(days=i), offset)
+    # 懒聚合：只重算「今日」+「有学习记录或已有行」的学习日，
+    # 跳过 365 天里绝大多数空历史天，避免每次访问 /stats/daily 重放全量聚合（热力图/雷达十几秒卡顿）。
+    rec = await db.execute(
+        select(LearningRecord.created_at).where(
+            LearningRecord.user_id == current_user.id,
+            LearningRecord.created_at >= daily_stats.learning_day_bounds(from_d, offset)[0],
+            LearningRecord.created_at < daily_stats.learning_day_bounds(today, offset)[1],
+        )
+    )
+    active = {daily_stats.to_learning_date(dt, offset) for dt in rec.scalars().all()}
+    dates = set(active)  # 只重算有学习记录的学习日 + 今日；历史空行不回填、不重算
+    dates.add(today)  # 今日持续累计，始终重算
+    for d in dates:
+        await daily_stats.recompute_day(db, current_user.id, d, offset)
     await db.commit()
 
     res = await db.execute(

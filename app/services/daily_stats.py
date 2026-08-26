@@ -25,6 +25,11 @@ def current_learning_date(offset: timedelta) -> date:
     return (datetime.now() - timedelta(hours=2)).date()
 
 
+def to_learning_date(dt: datetime, offset: timedelta) -> date:
+    # 把一条 UTC 时间戳归并到对应的学习日（本地 02:00 边界）
+    return (dt + offset - timedelta(hours=2)).date()
+
+
 async def fetch_day_records(db: AsyncSession, user_id: str, learning_date: date, offset: timedelta) -> list:
     start, end = learning_day_bounds(learning_date, offset)
     res = await db.execute(
